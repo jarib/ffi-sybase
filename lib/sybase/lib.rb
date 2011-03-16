@@ -206,5 +206,35 @@ module Sybase
         raise Error, msg
       end
     end
+    
+    def self.display_length(data_format)
+      len = case data_format[:datatype]
+            when CS_CHAR_TYPE, CS_LONGCHAR_TYPE, CV_VARCHAR_TYPE, CS_TEXT_TYPE, CS_IMAGE_TYPE
+              [data_format[:maxlength], MAX_CHAR_BUF].min
+            when CS_UNICHAR_TYPE
+              [data_format[:maxlength] / 2, MAX_CHAR_BUF].min
+            when CS_BINARY_TYPE, CS_VARBINARY_TYPE
+              [(2 * data_format[:maxlength]) + 2, MAX_CHAR_BUF].min
+            when CS_BIT_TYPE, CS_TINYINT_TYPE
+              3
+            when CS_SMALLINT_TYPE
+              6
+            when CS_INT_TYPE
+              11
+            when CS_REAL_TYPE, CS_FLOAT_TYPE
+              20
+            when CS_MONEY_TYPE, CS_MONEY4_TYPE
+              24
+            when CS_DATETIME_TYPE, CS_DATETIME4_TYPE
+              30
+            when CS_NUMERIC_TYPE, CS_DECIMAL_TYPE
+              CS_MAX_PREC + 2
+            else
+              12
+            end
+
+
+      [data_format[:name].size + 1, len].max
+    end
   end # Lib
 end # Sybase

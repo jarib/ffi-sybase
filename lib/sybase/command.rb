@@ -15,27 +15,32 @@ module Sybase
       send
       examine_results
     ensure
-      cleanup
+      finish
+    end
+
+    def finish
+      to_ptr.free
+      @ptr = nil
     end
 
     def to_ptr
-      @ptr or raise "command #{self} not initialized"
+      @ptr or raise "command #{self} already ran or was not initialized"
     end
 
     private
-
+    
     def set_command
       Lib.check Lib.ct_command(to_ptr, CS_LANG_CMD, @str.to_s, CS_NULLTERM, CS_UNUSED)
     end
 
     def send
-      Lib.check Lib.ct_send(to_ptr), "ct_send"
+      Lib.check Lib.ct_send(to_ptr), "ct_send failed"
     end
 
     def cancel
       Lib.ct_cancel(nil, to_ptr, CS_CANCEL_CURRENT)
     end
-
+    
     def examine_results
       intptr = FFI::MemoryPointer.new(:int)
 
@@ -46,15 +51,12 @@ module Sybase
 
         case restype
         when CS_CMD_SUCCEED, CS_CMD_DONE
-          p self => :succeed_done
           state = :ok
         when CS_CMD_FAIL
-          p self => :fail
           state = :failed
         when CS_ROW_RESULT, CS_CURSOR_RESULT, CS_PARAM_RESULT, CS_STATUS_RESULT, CS_COMPUTE_RESULT
           fetch_data
         else
-          p self => [:in_else, restype]
           state = :failed
         end
 
@@ -65,14 +67,8 @@ module Sybase
       end
     end
 
-    def cleanup
-      to_ptr.free
-      @ptr = nil
-    end
-
     def successful?(intptr)
       @return_code = Lib.ct_results(to_ptr, intptr)
-      p self => [@return_code, CS_SUCCEED]
       @return_code == CS_SUCCEED
     end
 
@@ -93,8 +89,7 @@ module Sybase
         cd = column_datas[i]
 
         Lib.check Lib.ct_describe(to_ptr, i + 1, df)
-        p :name => df.name
-        df[:maxlength] = display_length(df) + 1
+        df[:maxlength] = Lib.display_length(df) + 1
 
         # convert things to null-terminated strings
         df[:datatype] = CS_CHAR_TYPE
@@ -122,7 +117,7 @@ module Sybase
           raise Error, "error on row #{row_count}"
         end
 
-        p column_datas.map { |e| e[:value].read_string }
+        p [row_count, Hash[data_formats.zip(column_datas).map { |df, cd| [df.name, cd.value] }]]
       end
 
       # done processing rows, check final return code
@@ -154,59 +149,6 @@ module Sybase
       num_cols
     end
 
-    def display_length(column)
-      len = case column[:datatype]
-            when CS_CHAR_TYPE, CS_LONGCHAR_TYPE, CV_VARCHAR_TYPE, CS_TEXT_TYPE, CS_IMAGE_TYPE
-              [column[:maxlength], MAX_CHAR_BUF].min
-            when CS_UNICHAR_TYPE
-              [column[:maxlength] / 2, MAX_CHAR_BUF].min
-            when CS_BINARY_TYPE, CS_VARBINARY_TYPE
-              [(2 * column[:maxlength]) + 2, MAX_CHAR_BUF].min
-            when CS_BIT_TYPE, CS_TINYINT_TYPE
-              3
-            when CS_SMALLINT_TYPE
-              6
-            when CS_INT_TYPE
-              11
-            when CS_REAL_TYPE, CS_FLOAT_TYPE
-              20
-            when CS_MONEY_TYPE, CS_MONEY4_TYPE
-              24
-            when CS_DATETIME_TYPE, CS_DATETIME4_TYPE
-              30
-            when CS_NUMERIC_TYPE, CS_DECIMAL_TYPE
-              CS_MAX_PREC + 2
-            else
-              12
-            end
-
-
-      [column[:name].size + 1, len].max
-    end
-
-    class ColumnData < FFI::Struct
-      layout :indicator, :int,
-             :value,     :pointer,
-             :valuelen,  :int
-    end
-
-    class DataFormat < FFI::Struct
-      layout :name,       [:char, CS_MAX_CHAR],
-             :namelen,    :int,
-             :datatype,   :int,
-             :format,    :int,
-             :maxlength,  :int,
-             :scale,      :int,
-             :precision,  :int,
-             :status,     :int,
-             :count,      :int,
-             :usertype,   :int,
-             :locale,     :pointer
-
-      def name
-        self[:name].to_s
-      end
-    end
 
   end # Command
 end # Sybase
