@@ -89,11 +89,57 @@ module Sybase
       data_format_array.write_array_of_pointer(data_formats)
 
       num_cols.times do |i|
-        Lib.check Lib.ct_describe(to_ptr, i + 1, data_formats[i])
-        p :name => data_formats[i].name
+        df = data_formats[i]
+        cd = column_datas[i]
+
+        Lib.check Lib.ct_describe(to_ptr, i + 1, df)
+        p :name => df.name
+        df[:maxlength] = display_length(df) + 1
+
+        # convert things to null-terminated strings
+        df[:datatype] = CS_CHAR_TYPE
+        df[:format] = CS_FMT_NULLTERM
+
+        cd[:value] = FFI::MemoryPointer.new(:char, df[:maxlength])
+
+        # bind
+        valuelen_ptr = FFI::MemoryPointer.new(:int)
+        indicator_ptr = FFI::MemoryPointer.new(:int)
+        Lib.check Lib.ct_bind(to_ptr, i + 1, df, cd[:value], valuelen_ptr, indicator_ptr)
+
+        cd[:valuelen] = valuelen_ptr.read_int
+        cd[:indicator] = indicator_ptr.read_int
+      end
+
+      rows_read_ptr = FFI::MemoryPointer.new(:int)
+      row_count = 0
+
+      while (code = fetch_row(rows_read_ptr)) == CS_SUCCEED || code == CS_ROW_FAIL
+        # increment row count
+        row_count += rows_read_ptr.read_int
+
+        if code == CS_ROW_FAIL
+          raise Error, "error on row #{row_count}"
+        end
+
+        p column_datas.map { |e| e[:value].read_string }
+      end
+
+      # done processing rows, check final return code
+      case code
+      when CS_END_DATA
+        puts "All done processing rows."
+      when CS_FAIL
+        raise Error, "ct_fetch() failed"
+      else
+        raise Error, "unexpected return code: #{code}"
       end
     ensure
       # ?
+    end
+
+    def fetch_row(rows_read_ptr)
+      Lib.ct_fetch(to_ptr, CS_UNUSED, CS_UNUSED, CS_UNUSED, rows_read_ptr)
     end
 
     def fetch_column_count
@@ -108,6 +154,36 @@ module Sybase
       num_cols
     end
 
+    def display_length(column)
+      len = case column[:datatype]
+            when CS_CHAR_TYPE, CS_LONGCHAR_TYPE, CV_VARCHAR_TYPE, CS_TEXT_TYPE, CS_IMAGE_TYPE
+              [column[:maxlength], MAX_CHAR_BUF].min
+            when CS_UNICHAR_TYPE
+              [column[:maxlength] / 2, MAX_CHAR_BUF].min
+            when CS_BINARY_TYPE, CS_VARBINARY_TYPE
+              [(2 * column[:maxlength]) + 2, MAX_CHAR_BUF].min
+            when CS_BIT_TYPE, CS_TINYINT_TYPE
+              3
+            when CS_SMALLINT_TYPE
+              6
+            when CS_INT_TYPE
+              11
+            when CS_REAL_TYPE, CS_FLOAT_TYPE
+              20
+            when CS_MONEY_TYPE, CS_MONEY4_TYPE
+              24
+            when CS_DATETIME_TYPE, CS_DATETIME4_TYPE
+              30
+            when CS_NUMERIC_TYPE, CS_DECIMAL_TYPE
+              CS_MAX_PREC + 2
+            else
+              12
+            end
+
+
+      [column[:name].size + 1, len].max
+    end
+
     class ColumnData < FFI::Struct
       layout :indicator, :int,
              :value,     :pointer,
@@ -118,7 +194,7 @@ module Sybase
       layout :name,       [:char, CS_MAX_CHAR],
              :namelen,    :int,
              :datatype,   :int,
-             :format,     :int,
+             :format,    :int,
              :maxlength,  :int,
              :scale,      :int,
              :precision,  :int,

@@ -180,6 +180,27 @@ module Sybase
 
     attach_function :ct_describe, [:pointer, :int, :pointer], :int
 
+    # extern CS_RETCODE CS_PUBLIC ct_bind PROTOTYPE((
+    #   CS_COMMAND *cmd,
+    #   CS_INT item,
+    #   CS_DATAFMT *datafmt,
+    #   CS_VOID *buf,
+    #   CS_INT *outputlen,
+    #   CS_SMALLINT *indicator
+    #   ));
+
+    attach_function :ct_bind, [:pointer, :int, :pointer, :pointer, :pointer, :pointer], :int
+
+    # extern CS_RETCODE CS_PUBLIC ct_fetch PROTOTYPE((
+    #   CS_COMMAND *cmd,
+    #   CS_INT type,
+    #   CS_INT offset,
+    #   CS_INT option,
+    #   CS_INT *count
+    #   ));
+
+    attach_function :ct_fetch, [:pointer, :int, :int, :int, :pointer], :int
+
     def self.check(code, msg = "error")
       if code != CS_SUCCEED
         raise Error, msg
