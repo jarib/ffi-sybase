@@ -10,7 +10,7 @@ Gem::Specification.new do |s|
   s.email       = ["jari.bakken@gmail.com"]
   s.homepage    = "http://github.com/jarib/ffi-sybase"
   s.summary     = %q{Ruby/FFI bindings for Sybase OCS}
-  s.description = %q{Ruby/FFI bindings for Sybase OCS}
+  s.description = %q{Ruby/FFI bindings for Sybase's Open Client library.}
 
   s.rubyforge_project = "ffi-sybase"
 
