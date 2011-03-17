@@ -74,7 +74,9 @@ module Sybase
              :param,
              :compute,
              :status
-          returned << Result.new(restype, fetch_data)
+
+          columns, rows = fetch_data
+          returned << Result.new(restype, :columns => columns, :rows => rows)
         else
           returned << Result.new(restype, nil, result_info(CS_ROW_COUNT), result_info(CS_TRANS_STATE))
         end
@@ -126,8 +128,7 @@ module Sybase
           df[:format]    = CS_FMT_UNUSED
           df.ruby_type = Numeric
 
-          cd[:value] = FFI::MemoryPointer.new(:int)
-          cd.read_method = :read_int
+          cd.int_pointer!
         when CS_REAL_TYPE, CS_FLOAT_TYPE
           # not sure about this
           df[:maxlength] = FFI.type_size(:double)
@@ -135,8 +136,7 @@ module Sybase
           df[:format]    = CS_FMT_UNUSED
           df.ruby_type = Float
 
-          cd[:value] = FFI::MemoryPointer.new(:double)
-          cd.read_method = :read_double
+          cd.double_pointer!
         else # treat as String
           df[:maxlength] = Lib.display_length(df) + 1
 
@@ -148,17 +148,17 @@ module Sybase
           end
 
           df.ruby_type = String
-          cd[:value] = FFI::MemoryPointer.new(:char, df[:maxlength])
-          cd.read_method = :read_string
+          cd.char_pointer!(df[:maxlength])
         end
 
-        p :column_name => df.name, :type => df.ruby_type, :datatype => type
         bind i, df, cd
       end
 
       rows_read_ptr = FFI::MemoryPointer.new(:int)
       row_count     = 0
-      result        = []
+
+      columns       = data_formats.map { |e| e.name }
+      values        = []
 
       while (code = fetch_row(rows_read_ptr)) == CS_SUCCEED || code == CS_ROW_FAIL
         # increment row count
@@ -168,8 +168,7 @@ module Sybase
           raise Error, "error on row #{row_count}"
         end
 
-        # result << cd.value
-        p [row_count, Hash[data_formats.zip(column_datas).map { |df, cd| [df.name, cd.value] }]]
+        values << column_datas.map.with_index { |e,idx| e.value }
       end
 
       # done processing rows, check final return code
@@ -182,7 +181,7 @@ module Sybase
         raise Error, "unexpected return code: #{code}"
       end
 
-      result
+      [columns, values]
     ensure
       # ?
     end
@@ -192,13 +191,7 @@ module Sybase
     end
 
     def bind(index, data_format, column_data)
-      valuelen_ptr  = FFI::MemoryPointer.new(:int)
-      indicator_ptr = FFI::MemoryPointer.new(:int)
-
-      Lib.check Lib.ct_bind(to_ptr, index + 1, data_format, column_data[:value], valuelen_ptr, indicator_ptr)
-
-      column_data[:valuelen] = valuelen_ptr.read_int
-      column_data[:indicator] = indicator_ptr.read_int
+      Lib.check Lib.ct_bind(to_ptr, index + 1, data_format, column_data.pointer, column_data.valuelen_pointer, column_data.indicator_pointer)
     end
 
     def fetch_column_count

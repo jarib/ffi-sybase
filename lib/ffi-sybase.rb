@@ -13,9 +13,16 @@ module Sybase
   CS_EXTERNAL_ERR       = -200
   CS_INTERNAL_ERR       = -300
 
+  CS_SET_FLAG           = 1700
+  CS_CLEAR_FLAG         = 1701
+  CS_DBG_ALL            = 1
+  CS_DBG_ASYNC          = 2
+  CS_DBG_ERROR          = 4
+
   CS_CLIENTMSG_CB       = 3
   CS_GET                = 33
   CS_MAX_CHAR           = 256
+  CS_MAX_NAME           = 255
   CS_MAX_MSG            = 1024
   CS_MESSAGE_CB         = 9119
   CS_NULLTERM           = -9

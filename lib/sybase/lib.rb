@@ -201,12 +201,23 @@ module Sybase
 
     attach_function :ct_fetch, [:pointer, :int, :int, :int, :pointer], :int
 
+    # extern CS_RETCODE CS_PUBLIC ct_debug PROTOTYPE((
+    #     CS_CONTEXT *context,
+    #     CS_CONNECTION *connection,
+    #     CS_INT operation,
+    #     CS_INT flag,
+    #     CS_CHAR *filename,
+    #     CS_INT fnamelen
+    #     ));
+
+    attach_function :ct_debug, [:pointer, :pointer, :int, :int, :pointer, :int], :int
+
     def self.check(code, msg = "error")
       if code != CS_SUCCEED
         raise Error, msg
       end
     end
-    
+
     def self.display_length(data_format)
       len = case data_format[:datatype]
             when CS_CHAR_TYPE, CS_LONGCHAR_TYPE, CV_VARCHAR_TYPE, CS_TEXT_TYPE, CS_IMAGE_TYPE
