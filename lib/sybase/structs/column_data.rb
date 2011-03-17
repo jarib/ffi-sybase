@@ -4,8 +4,10 @@ module Sybase
            :value,     :pointer,
            :valuelen,  :int
 
-     def value
-       self[:value].read_string
-     end
+    attr_accessor :read_method
+
+    def value
+      self[:value].__send__(read_method)
+    end
   end
 end

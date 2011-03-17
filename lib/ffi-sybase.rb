@@ -64,8 +64,9 @@ module Sybase
 
   # ct_res_info
   CS_ROW_COUNT          = 800
-  CS_MSGTYPE            = 806
   CS_NUMDATA            = 803
+  CS_MSGTYPE            = 806
+  CS_TRANS_STATE        = 808
 
   # ct_fetch
   CS_ROW_FAIL           = CS_EXTERNAL_ERR - 3

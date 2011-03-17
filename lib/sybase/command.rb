@@ -13,7 +13,7 @@ module Sybase
     def execute
       set_command
       send
-      examine_results
+      results
     ensure
       finish
     end
@@ -28,7 +28,7 @@ module Sybase
     end
 
     private
-    
+
     def set_command
       Lib.check Lib.ct_command(to_ptr, CS_LANG_CMD, @str.to_s, CS_NULLTERM, CS_UNUSED)
     end
@@ -40,30 +40,57 @@ module Sybase
     def cancel
       Lib.ct_cancel(nil, to_ptr, CS_CANCEL_CURRENT)
     end
-    
-    def examine_results
+
+    COMMAND_RESULTS = {
+      CS_CMD_SUCCEED    => :succeed,
+      CS_CMD_DONE       => :done,
+      CS_CMD_FAIL       => :fail,
+      CS_ROW_RESULT     => :row,
+      CS_CURSOR_RESULT  => :cursor,
+      CS_PARAM_RESULT   => :param,
+      CS_COMPUTE_RESULT => :compute,
+      CS_STATUS_RESULT  => :status
+    }
+
+    def results
       intptr = FFI::MemoryPointer.new(:int)
 
       state = :initial
 
+      returned = []
+
       while successful? intptr
         restype = intptr.read_int
+        restype = COMMAND_RESULTS[restype] || restype
 
         case restype
-        when CS_CMD_SUCCEED, CS_CMD_DONE
-          state = :ok
-        when CS_CMD_FAIL
-          state = :failed
-        when CS_ROW_RESULT, CS_CURSOR_RESULT, CS_PARAM_RESULT, CS_STATUS_RESULT, CS_COMPUTE_RESULT
-          fetch_data
+        when :succeed, # no row - e.g. insert/update
+             :done     # results completely processed
+          returned << Result.new(restype, nil, result_info(CS_ROW_COUNT), result_info(CS_TRANS_STATE))
+        when :fail
+          returned << Result.new(restype, nil, result_info(CS_ROW_COUNT), result_info(CS_TRANS_STATE))
+        when :row,
+             :cursor,
+             :param,
+             :compute,
+             :status
+          returned << Result.new(restype, fetch_data)
         else
-          state = :failed
+          returned << Result.new(restype, nil, result_info(CS_ROW_COUNT), result_info(CS_TRANS_STATE))
         end
 
-        if state == :failed
-          cancel
-          raise Error, "error examining result of #{self.inspect} (state = #{state})"
-        end
+        # check context timeout?
+      end
+
+      returned
+    end
+
+    class Result
+      def initialize(type, data, row_count = 0, transaction_state = 0)
+        @type              = type
+        @data              = data
+        @row_count         = row_count
+        @transaction_state = transaction_state
       end
     end
 
@@ -74,40 +101,64 @@ module Sybase
 
     def fetch_data
       num_cols = fetch_column_count
+
       column_datas = Array.new(num_cols) { ColumnData.new }
-
-      columns_array = FFI::MemoryPointer.new(ColumnData, num_cols)
-      columns_array.write_array_of_pointer(column_datas)
-
       data_formats = Array.new(num_cols) { DataFormat.new }
-
-      data_format_array = FFI::MemoryPointer.new(DataFormat, num_cols)
-      data_format_array.write_array_of_pointer(data_formats)
 
       num_cols.times do |i|
         df = data_formats[i]
         cd = column_datas[i]
 
         Lib.check Lib.ct_describe(to_ptr, i + 1, df)
-        df[:maxlength] = Lib.display_length(df) + 1
+        type = df[:datatype]
 
-        # convert things to null-terminated strings
-        df[:datatype] = CS_CHAR_TYPE
-        df[:format] = CS_FMT_NULLTERM
+        p :after => df
 
-        cd[:value] = FFI::MemoryPointer.new(:char, df[:maxlength])
+        case type
+        when CS_TINYINT_TYPE,
+             CS_SMALLINT_TYPE,
+             CS_INT_TYPE,
+             CS_BIT_TYPE,
+             CS_DECIMAL_TYPE,
+             CS_NUMERIC_TYPE
+          df[:maxlength] = FFI.type_size(:int)
+          df[:datatype]  = CS_INT_TYPE
+          df[:format]    = CS_FMT_UNUSED
+          df.ruby_type = Numeric
 
-        # bind
-        valuelen_ptr = FFI::MemoryPointer.new(:int)
-        indicator_ptr = FFI::MemoryPointer.new(:int)
-        Lib.check Lib.ct_bind(to_ptr, i + 1, df, cd[:value], valuelen_ptr, indicator_ptr)
+          cd[:value] = FFI::MemoryPointer.new(:int)
+          cd.read_method = :read_int
+        when CS_REAL_TYPE, CS_FLOAT_TYPE
+          # not sure about this
+          df[:maxlength] = FFI.type_size(:double)
+          df[:datatype]  = CS_FLOAT_TYPE
+          df[:format]    = CS_FMT_UNUSED
+          df.ruby_type = Float
 
-        cd[:valuelen] = valuelen_ptr.read_int
-        cd[:indicator] = indicator_ptr.read_int
+          cd[:value] = FFI::MemoryPointer.new(:double)
+          cd.read_method = :read_double
+        else # treat as String
+          df[:maxlength] = Lib.display_length(df) + 1
+
+          if type == CS_IMAGE_TYPE
+            df[:format] = CS_FMT_UNUSED
+          else
+            df[:format] = CS_FMT_NULLTERM
+            df[:datatype] = CS_CHAR_TYPE
+          end
+
+          df.ruby_type = String
+          cd[:value] = FFI::MemoryPointer.new(:char, df[:maxlength])
+          cd.read_method = :read_string
+        end
+
+        p :column_name => df.name, :type => df.ruby_type, :datatype => type
+        bind i, df, cd
       end
 
       rows_read_ptr = FFI::MemoryPointer.new(:int)
-      row_count = 0
+      row_count     = 0
+      result        = []
 
       while (code = fetch_row(rows_read_ptr)) == CS_SUCCEED || code == CS_ROW_FAIL
         # increment row count
@@ -117,6 +168,7 @@ module Sybase
           raise Error, "error on row #{row_count}"
         end
 
+        # result << cd.value
         p [row_count, Hash[data_formats.zip(column_datas).map { |df, cd| [df.name, cd.value] }]]
       end
 
@@ -129,6 +181,8 @@ module Sybase
       else
         raise Error, "unexpected return code: #{code}"
       end
+
+      result
     ensure
       # ?
     end
@@ -137,17 +191,33 @@ module Sybase
       Lib.ct_fetch(to_ptr, CS_UNUSED, CS_UNUSED, CS_UNUSED, rows_read_ptr)
     end
 
+    def bind(index, data_format, column_data)
+      valuelen_ptr  = FFI::MemoryPointer.new(:int)
+      indicator_ptr = FFI::MemoryPointer.new(:int)
+
+      Lib.check Lib.ct_bind(to_ptr, index + 1, data_format, column_data[:value], valuelen_ptr, indicator_ptr)
+
+      column_data[:valuelen] = valuelen_ptr.read_int
+      column_data[:indicator] = indicator_ptr.read_int
+    end
+
     def fetch_column_count
-      num_cols_ptr = FFI::MemoryPointer.new(:int)
-      Lib.check Lib.ct_res_info(to_ptr, CS_NUMDATA, num_cols_ptr, CS_UNUSED, nil)
-      num_cols = num_cols_ptr.read_int
+      num_cols = result_info(CS_NUMDATA)
 
       if num_cols <= 0
-        raise Error, "ct_res_info() returned zero or negative column count"
+        cancel
+        raise Error, "bad column count (#{num_cols})"
       end
 
       num_cols
     end
+
+    def result_info(operation)
+      int_ptr = FFI::MemoryPointer.new(:int)
+      Lib.check Lib.ct_res_info(to_ptr, operation, int_ptr, CS_UNUSED, nil)
+      num_cols = int_ptr.read_int
+    end
+
 
 
   end # Command

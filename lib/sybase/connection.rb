@@ -11,19 +11,19 @@ module Sybase
     end
 
     def username=(user)
-      set_property CS_USERNAME, user.to_s
+      set_property CS_USERNAME, user
     end
 
     def password=(password)
-      set_property CS_PASSWORD, password.to_s
+      set_property CS_PASSWORD, password
     end
 
     def appname=(name)
-      set_property CS_APPNAME, name.to_s
+      set_property CS_APPNAME, name
     end
 
     def connect(server)
-      Lib.check Lib.ct_connect(@ptr, server,  server.length), "connect(#{server.inspect})"
+      Lib.check Lib.ct_connect(@ptr, server,  server.bytesize), "connect(#{server.inspect})"
     end
 
     def to_ptr
@@ -33,7 +33,7 @@ module Sybase
     private
 
     def set_property(property, string)
-      Lib.check Lib.ct_con_props(@ptr, CS_SET, property, string, CS_NULLTERM, nil), "ct_con_prop(#{property} => #{string.inspect})"
+      Lib.check Lib.ct_con_props(@ptr, CS_SET, property, string.to_s, CS_NULLTERM, nil), "ct_con_prop(#{property} => #{string.inspect})"
     end
   end # Connection
 end # Sybase
