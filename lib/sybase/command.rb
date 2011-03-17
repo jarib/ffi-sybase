@@ -88,7 +88,7 @@ module Sybase
     end
 
     class Result
-      def initialize(type, data, row_count = 0, transaction_state = 0)
+      def initialize(type, data, row_count = nil, transaction_state = nil)
         @type              = type
         @data              = data
         @row_count         = row_count

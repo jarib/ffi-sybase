@@ -2,11 +2,7 @@ module Sybase
   module Lib
     extend FFI::Library
 
-    if FFI.type_size(:pointer) == 8 && RUBY_PLATFORM !~ /darwin/i
-      ffi_lib "sybct64"
-    else
-      ffi_lib "sybct"
-    end
+    ffi_lib "sybct"
 
     # extern CS_RETCODE CS_PUBLIC cs_ctx_alloc PROTOTYPE((
     #     CS_INT version,
