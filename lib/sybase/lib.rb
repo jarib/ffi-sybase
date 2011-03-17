@@ -2,7 +2,13 @@ module Sybase
   module Lib
     extend FFI::Library
 
-    ffi_lib "sybct"
+    suffix = RUBY_VERSION < '1.9' ? '' : '_r'
+
+    if FFI.type_size(:pointer) == 8
+      ffi_lib "sybct64#{suffix}"
+    else
+      ffi_lib "sybct#{suffix}"
+    end
 
     # extern CS_RETCODE CS_PUBLIC cs_ctx_alloc PROTOTYPE((
     #     CS_INT version,

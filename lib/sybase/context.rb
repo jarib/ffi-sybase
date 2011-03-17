@@ -8,6 +8,10 @@ module Sybase
       @ptr = FFI::AutoPointer.new(ptr.read_pointer, Lib.method(:cs_ctx_drop))
     end
 
+    def callbacks
+      @callbacks ||= Callbacks.new self
+    end
+
     def to_ptr
       @ptr
     end
@@ -20,5 +24,33 @@ module Sybase
     def exit
       Lib.check Lib.ct_exit(@ptr, CS_UNUSED), "ct_exit failed"
     end
+
+    class Callbacks
+      def initialize(context)
+        @context = context
+      end
+
+      def library=(cb)
+        actual_callback = FFI::Function.new(:int, [:pointer, :pointer]) { |context, message|
+          cb.call ClientMessage.new(message)
+          CS_SUCCEED
+        }
+        Lib.check Lib.cs_config(@context, CS_SET, CS_MESSAGE_CB, actual_callback, CS_UNUSED, nil)
+      end
+
+      def client=(cb)
+        Lib.check Lib.ct_callback(@context, nil, CS_SET, CS_CLIENTMSG_CB, lambda { |context, connection, message|
+          cb.call ClientMessage.new(message)
+          CS_SUCCEED
+        })
+      end
+
+      def server=(cb)
+        Lib.check Lib.ct_callback(@context, nil, CS_SET, CS_SERVERMSG_CB, lambda { |context, connection, message|
+            cb.call ServerMessage.new(message)
+            CS_SUCCEED
+        })
+      end
+    end # Callbacks
   end # Context
 end # Sybase

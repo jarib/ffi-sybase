@@ -2,12 +2,12 @@ module Sybase
   class Command
 
     def initialize(connection, str)
-      @connection = connection
-      ptr = FFI::MemoryPointer.new(:pointer)
-      Lib.check Lib.ct_cmd_alloc(connection, ptr), "ct_cmd_alloc"
+      FFI::MemoryPointer.new(:pointer) do |ptr|
+        Lib.check Lib.ct_cmd_alloc(connection, ptr), "ct_cmd_alloc"
+        @ptr = FFI::AutoPointer.new(ptr.read_pointer, Lib.method(:ct_cmd_drop))
+      end
 
       @str = str
-      @ptr = FFI::AutoPointer.new(ptr.read_pointer, Lib.method(:ct_cmd_drop))
     end
 
     def execute
@@ -207,11 +207,9 @@ module Sybase
 
     def result_info(operation)
       int_ptr = FFI::MemoryPointer.new(:int)
-      Lib.check Lib.ct_res_info(to_ptr, operation, int_ptr, CS_UNUSED, nil)
+      Lib.check Lib.ct_res_info(to_ptr, operation, int_ptr, CS_UNUSED, nil), "ct_res_info failed"
       num_cols = int_ptr.read_int
     end
-
-
 
   end # Command
 end # Sybase
