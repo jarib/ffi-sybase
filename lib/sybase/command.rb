@@ -88,11 +88,25 @@ module Sybase
     end
 
     class Result
+      attr_reader :type
+
       def initialize(type, data, row_count = nil, transaction_state = nil)
         @type              = type
         @data              = data
         @row_count         = row_count
         @transaction_state = transaction_state
+      end
+
+      def as_json(options = nil)
+        case @type
+        when :row
+          cols, rows = @data[:columns], @data[:rows]
+          rows.map do |row|
+            Hash[cols.zip(row)]
+          end
+        else
+          raise NotImplementedError, "Result#as_json for #{type}"
+        end
       end
     end # Result
 

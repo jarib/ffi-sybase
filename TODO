@@ -1,10 +1,10 @@
 soon:
 
-  - Sybase::Client wraps Context/Connection
   - simple specs
-  
+  - improve result handling
+
 maybe:
-  
+
   - Async / EM
-  
+
 

@@ -21,10 +21,6 @@ module Sybase
         self[key] = value
       end
 
-      unless opts.has_key?(:hostname)
-        self[:hostname] = Socket.gethostname
-      end
-
       if block_given?
         begin
           yield self
@@ -98,6 +94,8 @@ module Sybase
     def connect(server)
       server = server.to_s
       Lib.check Lib.ct_connect(@ptr, server,  server.bytesize), "connect(#{server.inspect}) failed"
+
+      self
     end
 
     def to_ptr
