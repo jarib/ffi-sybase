@@ -1,10 +1,11 @@
 module Sybase
   class ColumnData
-    attr_reader :pointer, :type
+    attr_reader :pointer, :type, :format
 
     def initialize
       @pointer = nil
       @type = nil
+      @format = DataFormat.new
     end
 
     def inspect

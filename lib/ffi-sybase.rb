@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 
+require 'socket'
 require 'ffi'
 
 module Sybase

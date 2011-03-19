@@ -38,7 +38,7 @@ module Sybase
     end
 
     def inspect
-      "#<%s name=%s namelen=%d datatype=%d format=%d maxlength=%d scale=%d precision=%d status=%d count=%d usertype=%d locale=%s>" % [
+      "#<%s name=%s namelen=%d datatype=%d format=%d maxlength=%d scale=%d precision=%d status=%d count=%d usertype=%d locale=%s address=%x>" % [
         self.class.name,
         name.inspect,
         self[:namelen],
@@ -50,13 +50,14 @@ module Sybase
         self[:status],
         self[:count],
         self[:usertype],
-        self[:locale].inspect
+        self[:locale].inspect,
+        to_ptr.address
       ]
     end
 
     def name
       self[:name].to_s
     end
-
   end
+
 end

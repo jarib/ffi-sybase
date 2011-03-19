@@ -7,7 +7,7 @@ module Sybase
         @ptr = FFI::AutoPointer.new(ptr.read_pointer, Lib.method(:ct_cmd_drop))
       end
 
-      @str = str
+      @str = str.to_s
     end
 
     def execute
@@ -30,7 +30,7 @@ module Sybase
     private
 
     def set_command
-      Lib.check Lib.ct_command(to_ptr, CS_LANG_CMD, @str.to_s, CS_NULLTERM, CS_UNUSED)
+      Lib.check Lib.ct_command(to_ptr, CS_LANG_CMD, @str, @str.bytesize, CS_UNUSED)
     end
 
     def send
@@ -94,7 +94,7 @@ module Sybase
         @row_count         = row_count
         @transaction_state = transaction_state
       end
-    end
+    end # Result
 
     def successful?(intptr)
       @return_code = Lib.ct_results(to_ptr, intptr)
@@ -105,16 +105,13 @@ module Sybase
       num_cols = fetch_column_count
 
       column_datas = Array.new(num_cols) { ColumnData.new }
-      data_formats = Array.new(num_cols) { DataFormat.new }
 
       num_cols.times do |i|
-        df = data_formats[i]
         cd = column_datas[i]
+        df = cd.format
 
         Lib.check Lib.ct_describe(to_ptr, i + 1, df)
         type = df[:datatype]
-
-        p :after => df
 
         case type
         when CS_TINYINT_TYPE,
@@ -126,7 +123,6 @@ module Sybase
           df[:maxlength] = FFI.type_size(:int)
           df[:datatype]  = CS_INT_TYPE
           df[:format]    = CS_FMT_UNUSED
-          df.ruby_type = Numeric
 
           cd.int_pointer!
         when CS_REAL_TYPE, CS_FLOAT_TYPE
@@ -134,7 +130,6 @@ module Sybase
           df[:maxlength] = FFI.type_size(:double)
           df[:datatype]  = CS_FLOAT_TYPE
           df[:format]    = CS_FMT_UNUSED
-          df.ruby_type = Float
 
           cd.double_pointer!
         else # treat as String
@@ -147,7 +142,6 @@ module Sybase
             df[:datatype] = CS_CHAR_TYPE
           end
 
-          df.ruby_type = String
           cd.char_pointer!(df[:maxlength])
         end
 
@@ -157,7 +151,7 @@ module Sybase
       rows_read_ptr = FFI::MemoryPointer.new(:int)
       row_count     = 0
 
-      columns       = data_formats.map { |e| e.name }
+      columns       = column_datas.map { |cd| cd.format.name }
       values        = []
 
       while (code = fetch_row(rows_read_ptr)) == CS_SUCCEED || code == CS_ROW_FAIL
@@ -168,13 +162,13 @@ module Sybase
           raise Error, "error on row #{row_count}"
         end
 
-        values << column_datas.map.with_index { |e,idx| e.value }
+        values << column_datas.map { |e| e.value }
       end
 
       # done processing rows, check final return code
       case code
       when CS_END_DATA
-        puts "All done processing rows."
+        # all good
       when CS_FAIL
         raise Error, "ct_fetch() failed"
       else

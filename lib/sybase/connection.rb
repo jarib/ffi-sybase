@@ -1,10 +1,11 @@
 module Sybase
   class Connection
     PROPERTIES = {
-      :username    => [CS_USERNAME, :string],
-      :password    => [CS_PASSWORD, :string],
-      :appname     => [CS_APPNAME, :string],
-      :tds_version => [CS_TDS_VERSION, :int]
+      :username    => [ CS_USERNAME,    :string ],
+      :password    => [ CS_PASSWORD,    :string ],
+      :appname     => [ CS_APPNAME,     :string ],
+      :tds_version => [ CS_TDS_VERSION, :int    ],
+      :hostname    => [ CS_HOSTNAME,    :string ]
     }
 
 
@@ -18,6 +19,10 @@ module Sybase
 
       opts.each do |key, value|
         self[key] = value
+      end
+
+      unless opts.has_key?(:hostname)
+        self[:hostname] = Socket.gethostname
       end
     end
 

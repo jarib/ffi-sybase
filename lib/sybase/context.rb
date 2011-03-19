@@ -8,6 +8,13 @@ module Sybase
       @ptr = FFI::AutoPointer.new(ptr.read_pointer, Lib.method(:cs_ctx_drop))
     end
 
+    def sync=(bool)
+      FFI::MemoryPointer.new(:int) do |ptr|
+        ptr.write_int(bool ? CS_SYNC_IO : CS_ASYNC_IO) # CS_DEFER_IO ?
+        Lib.check Lib.ct_config(@ptr, CS_SET, CS_NETIO, ptr, CS_UNUSED, nil)
+      end
+    end
+
     def callbacks
       @callbacks ||= Callbacks.new self
     end
@@ -18,6 +25,7 @@ module Sybase
 
     def init
       Lib.check Lib.ct_init(@ptr, @version), "ct_init failed"
+      self.sync = true
       self
     end
 
@@ -30,7 +38,7 @@ module Sybase
         @context = context
       end
 
-      def library=(cb)
+      def library(&cb)
         actual_callback = FFI::Function.new(:int, [:pointer, :pointer]) { |context, message|
           cb.call ClientMessage.new(message)
           CS_SUCCEED
@@ -38,14 +46,14 @@ module Sybase
         Lib.check Lib.cs_config(@context, CS_SET, CS_MESSAGE_CB, actual_callback, CS_UNUSED, nil)
       end
 
-      def client=(cb)
+      def client(&cb)
         Lib.check Lib.ct_callback(@context, nil, CS_SET, CS_CLIENTMSG_CB, lambda { |context, connection, message|
           cb.call ClientMessage.new(message)
           CS_SUCCEED
         })
       end
 
-      def server=(cb)
+      def server(&cb)
         Lib.check Lib.ct_callback(@context, nil, CS_SET, CS_SERVERMSG_CB, lambda { |context, connection, message|
             cb.call ServerMessage.new(message)
             CS_SUCCEED

@@ -33,7 +33,12 @@ module Sybase
   CS_FAIL               = 0
   CS_UNUSED             = -99999
   CS_CANCEL_CURRENT     = 6000
+  CS_FMT_UNUSED         = 0
   CS_FMT_NULLTERM       = 1
+
+  CS_SYNC_IO = 8111
+  CS_ASYNC_IO = 8112
+  CS_DEFER_IO = 8113
 
   # server options
   CS_OPT_CHARSET        = 5010

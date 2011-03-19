@@ -30,6 +30,16 @@ module Sybase
 
     attach_function :ct_init, [:pointer, :int], :int
 
+    # extern CS_RETCODE CS_PUBLIC ct_config PROTOTYPE((
+    #     CS_CONTEXT *context,
+    #     CS_INT action,
+    #     CS_INT property,
+    #     CS_VOID *buf,
+    #     CS_INT buflen,
+    #     CS_INT *outlen
+    #     ));
+
+    attach_function :ct_config, [:pointer, :int, :int, :pointer, :int, :pointer], :int
 
     # extern CS_RETCODE CS_PUBLIC cs_config PROTOTYPE((
     #     CS_CONTEXT *context,
@@ -41,6 +51,7 @@ module Sybase
     #     ));
 
     attach_function :cs_config, [:pointer, :int, :int, :pointer, :int, :pointer], :int
+
 
 
     callback :cs_clientmsg_cb, [:pointer, :pointer, :pointer], :int
@@ -222,7 +233,7 @@ module Sybase
 
     def self.display_length(data_format)
       len = case data_format[:datatype]
-            when CS_CHAR_TYPE, CS_LONGCHAR_TYPE, CV_VARCHAR_TYPE, CS_TEXT_TYPE, CS_IMAGE_TYPE
+            when CS_CHAR_TYPE, CS_LONGCHAR_TYPE, CS_VARCHAR_TYPE, CS_TEXT_TYPE, CS_IMAGE_TYPE
               [data_format[:maxlength], MAX_CHAR_BUF].min
             when CS_UNICHAR_TYPE
               [data_format[:maxlength] / 2, MAX_CHAR_BUF].min
