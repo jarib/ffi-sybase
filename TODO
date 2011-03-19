@@ -1,0 +1,10 @@
+soon:
+
+  - Sybase::Client wraps Context/Connection
+  - simple specs
+  
+maybe:
+  
+  - Async / EM
+  
+
