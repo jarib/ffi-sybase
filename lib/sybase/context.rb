@@ -25,7 +25,6 @@ module Sybase
 
     def init
       Lib.check Lib.ct_init(@ptr, @version), "ct_init failed"
-      self.sync = true
       self
     end
 

@@ -48,7 +48,7 @@ module Sybase
       when :int
         @pointer.read_int
       when :char
-        @pointer.get_bytes(0, valuelen)
+        @pointer.get_bytes(0, valuelen - 1)
       when :double
         @pointer.read_double
       else
