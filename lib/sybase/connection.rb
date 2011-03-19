@@ -24,6 +24,14 @@ module Sybase
       unless opts.has_key?(:hostname)
         self[:hostname] = Socket.gethostname
       end
+
+      if block_given?
+        begin
+          yield self
+        ensure
+          close
+        end
+      end
     end
 
     def debug!
