@@ -61,36 +61,6 @@ module Sybase
       end
     end
 
-    def property_type_for(key)
-      PROPERTIES.fetch(key) { |key|
-        raise ArgumentError, "invalid option: #{key.inspect}, expected one of #{PROPERTIES.keys.inspect}"
-      }
-    end
-
-    def username=(user)
-      set_string CS_USERNAME, user
-    end
-
-    def username
-      get_string CS_USERNAME
-    end
-
-    def password=(password)
-      set_string CS_PASSWORD, password
-    end
-
-    def password
-      get_string CS_PASSWORD
-    end
-
-    def appname=(name)
-      set_string CS_APPNAME, name
-    end
-
-    def appname
-      get_string CS_APPNAME, name
-    end
-
     def connect(server)
       server = server.to_s
       Lib.check Lib.ct_connect(@ptr, server,  server.bytesize), "connect(#{server.inspect}) failed"
@@ -104,16 +74,22 @@ module Sybase
 
     private
 
+    def property_type_for(key)
+      PROPERTIES.fetch(key) { |key|
+        raise ArgumentError, "invalid option: #{key.inspect}, expected one of #{PROPERTIES.keys.inspect}"
+      }
+    end
+
     def set_string_property(property, string)
       Lib.check Lib.ct_con_props(@ptr, CS_SET, property, string.to_s, CS_NULLTERM, nil), "ct_con_prop(#{property} => #{string.inspect}) failed"
     end
 
     def get_string_property(property)
-      FFI::MemoryPointer.new(:string) { |ptr| get_property(property, ptr) }.read_string
+      FFI::MemoryPointer.new(:char, CS_MAX_CHAR) { |ptr| get_property(property, ptr, CS_MAX_CHAR) }.get_bytes(0, CS_MAX_CHAR)
     end
 
     def get_int_property(property)
-      FFI::MemoryPointer.new(:int) { |ptr| get_property(property, ptr) }.read_int
+      FFI::MemoryPointer.new(:int) { |ptr| get_property(property, ptr, ptr.size) }.read_int
     end
 
     def set_int_property(property, int)
@@ -123,8 +99,8 @@ module Sybase
       Lib.check Lib.ct_con_props(@ptr, CS_SET, property, ptr, CS_UNUSED, nil), "ct_con_prop(#{property} => #{int.inspect}) failed"
     end
 
-    def get_property(property, ptr)
-      Lib.check Lib.ct_con_props(@ptr, CS_GET, property, ptr, CS_UNUSED, nil), "ct_con_prop(CS_GET, #{property}) failed"
+    def get_property(property, ptr, length)
+      Lib.check Lib.ct_con_props(@ptr, CS_GET, property, ptr, length, nil), "ct_con_prop(CS_GET, #{property}) failed"
     end
   end # Connection
 end # Sybase

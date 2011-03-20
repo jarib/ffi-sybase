@@ -33,6 +33,7 @@ module Sybase
   CS_FAIL               = 0
   CS_UNUSED             = -99999
   CS_CANCEL_CURRENT     = 6000
+  CS_CANCEL_ALL         = 6001
   CS_FMT_UNUSED         = 0
   CS_FMT_NULLTERM       = 1
 

@@ -37,8 +37,14 @@ module Sybase
       Lib.check Lib.ct_send(to_ptr), "ct_send failed"
     end
 
-    def cancel
-      Lib.ct_cancel(nil, to_ptr, CS_CANCEL_CURRENT)
+    CANCELS = {
+      :current => CS_CANCEL_CURRENT,
+      :all     => CS_CANCEL_CURRENT
+    }
+
+    def cancel(type = :current)
+      code = CANCELS.fetch(type) { raise ArgumentError, "unknown type: #{type.inspect}, expected #{CANCELS.keys.inspect}" }
+      Lib.ct_cancel(nil, to_ptr, code)
     end
 
     COMMAND_RESULTS = {
@@ -66,9 +72,9 @@ module Sybase
         case restype
         when :succeed, # no row - e.g. insert/update
              :done     # results completely processed
-          returned << Result.new(restype, nil, result_info(CS_ROW_COUNT), result_info(CS_TRANS_STATE))
+          returned << {:ok => true, :type => restype, :row_count => result_info(CS_ROW_COUNT)}
         when :fail
-          returned << Result.new(restype, nil, result_info(CS_ROW_COUNT), result_info(CS_TRANS_STATE))
+          returned << {:ok => false, :type => restype, :row_count => result_info(CS_ROW_COUNT)}
         when :row,
              :cursor,
              :param,
@@ -76,9 +82,9 @@ module Sybase
              :status
 
           columns, rows = fetch_data
-          returned << Result.new(restype, :columns => columns, :rows => rows)
+          returned << {:ok => true, :type => restype, :columns => columns, :rows => rows}
         else
-          returned << Result.new(restype, nil, result_info(CS_ROW_COUNT), result_info(CS_TRANS_STATE))
+          returned << {:ok => false, :type => restype, :row_count => result_info(CS_ROW_COUNT) }
         end
 
         # check context timeout?
@@ -86,29 +92,6 @@ module Sybase
 
       returned
     end
-
-    class Result
-      attr_reader :type
-
-      def initialize(type, data, row_count = nil, transaction_state = nil)
-        @type              = type
-        @data              = data
-        @row_count         = row_count
-        @transaction_state = transaction_state
-      end
-
-      def as_json(options = nil)
-        case @type
-        when :row
-          cols, rows = @data[:columns], @data[:rows]
-          rows.map do |row|
-            Hash[cols.zip(row)]
-          end
-        else
-          raise NotImplementedError, "Result#as_json for #{type}"
-        end
-      end
-    end # Result
 
     def successful?(intptr)
       @return_code = Lib.ct_results(to_ptr, intptr)
