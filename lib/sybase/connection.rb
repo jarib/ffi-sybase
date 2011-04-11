@@ -75,7 +75,7 @@ module Sybase
     private
 
     def property_type_for(key)
-      PROPERTIES.fetch(key) { |key|
+      PROPERTIES.fetch(key) {
         raise ArgumentError, "invalid option: #{key.inspect}, expected one of #{PROPERTIES.keys.inspect}"
       }
     end

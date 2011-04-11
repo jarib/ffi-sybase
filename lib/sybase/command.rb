@@ -60,9 +60,7 @@ module Sybase
 
     def results
       intptr = FFI::MemoryPointer.new(:int)
-
-      state = :initial
-
+      rows_affected = -1
       returned = []
 
       while successful? intptr
@@ -70,11 +68,12 @@ module Sybase
         restype = COMMAND_RESULTS[restype] || restype
 
         case restype
-        when :succeed, # no row - e.g. insert/update
-             :done     # results completely processed
-          returned << {:ok => true, :type => restype, :row_count => result_info(CS_ROW_COUNT)}
+        when :done # results completely processed
+          rows_affected = result_info(CS_ROW_COUNT)
+        when :succeed
+           # no row - e.g. insert/update
         when :fail
-          returned << {:ok => false, :type => restype, :row_count => result_info(CS_ROW_COUNT)}
+          raise Error, "ct_results failed (#{restype.inspect})"
         when :row,
              :cursor,
              :param,
@@ -82,15 +81,15 @@ module Sybase
              :status
 
           columns, rows = fetch_data
-          returned << {:ok => true, :type => restype, :columns => columns, :rows => rows}
+          returned << {:columns => columns, :rows => rows}
         else
-          returned << {:ok => false, :type => restype, :row_count => result_info(CS_ROW_COUNT) }
+          raise Error, "unknown result (#{restype.inspect})"
         end
 
         # check context timeout?
       end
 
-      returned
+      [rows_affected, returned]
     end
 
     def successful?(intptr)

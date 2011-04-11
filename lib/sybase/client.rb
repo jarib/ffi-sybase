@@ -35,7 +35,8 @@ module Sybase
     end
 
     def execute(sql)
-      build_result { |res| res << Command.new(@connection, sql).execute }
+      $stderr.puts "executing: #{sql.inspect}" if $DEBUG
+      build_result { |res| res.affected, res.data = Command.new(@connection, sql).execute }
     end
 
     def close
@@ -61,7 +62,7 @@ module Sybase
     end
 
     class ResultBuilder
-      attr_accessor :messages
+      attr_accessor :messages, :affected, :data
 
       def start
         @started_at = Time.now
