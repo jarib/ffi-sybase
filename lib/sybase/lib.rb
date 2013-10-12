@@ -5,7 +5,7 @@ module Sybase
     suffix = RUBY_VERSION < '1.9' ? '' : '_r'
 
     if FFI.type_size(:pointer) == 8
-      ffi_lib "sybct64#{suffix}"
+      ffi_lib "sybct#{suffix}64"
     else
       ffi_lib "sybct#{suffix}"
     end
